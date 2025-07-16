@@ -1,128 +1,122 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:ffi';
+import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_audio_capture/flutter_audio_capture.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
-
-// NumDart gives Array, ArrayComplex & arrayToComplexArray
-import 'package:scidart/numdart.dart' as nd;
-// SciDart gives fft()
-import 'package:scidart/scidart.dart' as sd;
+import 'package:ffi/ffi.dart';
+import 'package:om/om_bindings.dart';
 
 bool kDebugMode = true;
+
+/// Load C++ library and bind
+final dylib = Platform.isAndroid
+    ? DynamicLibrary.open("libom.so")
+    : DynamicLibrary.process();
+final omBindings = OmBindings(dylib);
 
 class OmDetectionController {
   OmDetectionController._();
   static final OmDetectionController _instance = OmDetectionController._();
-  factory OmDetectionController() {
-    return _instance;
-  }
-
-  static const _channel = MethodChannel('native_audio');
+  factory OmDetectionController() => _instance;
 
   final FlutterAudioCapture _audioCapture = FlutterAudioCapture();
+  static const MethodChannel _channel = MethodChannel('native_audio');
+
   bool isRecording = false;
   double? peakFrequency;
   double? peakMagnitude;
   int omCount = 0;
   bool _verdict = false;
-  int? _actualSampleRate;
+  int _sampleRate = 44100;
+
+  void Function(void Function())? _refreshUi;
 
   Future<void> start(void Function(void Function()) refreshUi) async {
+    _refreshUi = refreshUi;
     await _audioCapture.init();
-    await _getActualSampleRate();
-    await _startCapture(refreshUi, _actualSampleRate!);
+    try {
+      final rate = await _channel.invokeMethod<int>('getSampleRate');
+      if (rate != null) _sampleRate = rate;
+      if (kDebugMode) print('SampleRate: $_sampleRate');
+    } on PlatformException {
+      if (kDebugMode) print('Defaulting to 44100');
+    }
 
+    if (!await Permission.microphone.request().isGranted) {
+      if (kDebugMode) print('Mic denied');
+      return;
+    }
+
+    await _audioCapture.start(
+      (obj) => _listener(obj),
+      _onError,
+      sampleRate: _sampleRate,
+      bufferSize: 2048,
+    );
+    isRecording = true;
     refreshUi(() {});
   }
 
   void stop(void Function(void Function()) refreshUi) {
     _audioCapture.stop();
+    isRecording = false;
+    refreshUi(() {});
+  }
+
+  void resetCount(void Function(void Function()) refreshUi) {
     refreshUi(() {
-      isRecording = false;
+      omCount = 0;
     });
   }
 
-  Future<void> _getActualSampleRate() async {
-    try {
-      final int rate = await _channel.invokeMethod('getSampleRate');
-      _actualSampleRate = rate;
-      if (kDebugMode) print('Actual sample rate: $rate Hz');
-    } on PlatformException catch (e) {
-      _actualSampleRate = 44100;
-      if (kDebugMode) print('Error getting sample rate: ${e.message}');
-    }
-  }
-
-  Future<void> _startCapture(
-    void Function(void Function()) refreshUi,
-    int actualSampleRate,
-  ) async {
-    if (!await Permission.microphone.request().isGranted) {
-      if (kDebugMode) print('mic denied'); // do something here
-      return;
-    }
-    await _audioCapture.start(
-      (obj) => _listener(obj, refreshUi),
-      _onError,
-      sampleRate: actualSampleRate,
-      bufferSize: 2048,
+  void _listener(dynamic obj) {
+    final Float32List buffer = Float32List.fromList(List<double>.from(obj));
+    final Pointer<Float> samplePtr = malloc.allocate<Float>(
+      buffer.length * sizeOf<Float>(),
     );
-    isRecording = true;
-  }
-
-  void _listener(dynamic obj, void Function(void Function()) refreshUi) {
-    //raw samples → Dart list
-    final buffer = Float32List.fromList(List<double>.from(obj));
-    // final List<double> raw = buffer.toList();
-    // wrap into NumDart real array
-    final nd.Array realSignal = nd.Array(buffer);
-    //convert to complex (fft needs ArrayComplex)
-    final nd.ArrayComplex complexSignal = nd.arrayToComplexArray(realSignal);
-    //run FFT
-    final nd.ArrayComplex fftResult = sd.fft(complexSignal);
-    //magnitudes & find peak
-    final nd.Array magsArray = nd.arrayComplexAbs(fftResult);
-    final List<double> mags = magsArray.toList();
-    int maxI = 0;
-    double maxM = mags[0];
-    for (var i = 1; i < mags.length ~/ 2; i++) {
-      if (mags[i] > maxM) {
-        maxM = mags[i];
-        maxI = i;
-      }
+    for (int i = 0; i < buffer.length; i++) {
+      samplePtr[i] = buffer[i];
     }
 
-    final freqBin = _actualSampleRate! / obj.length;
+    final Pointer<Double> freqPtr = malloc.allocate<Double>(sizeOf<Double>());
+    final Pointer<Double> magPtr = malloc.allocate<Double>(sizeOf<Double>());
 
-    //final samples = obj.length;
-    //final durationInSeconds = 0.161; // actual time of chunk (calculated before)
+    final int detected = omBindings.detect_om(
+      samplePtr,
+      buffer.length,
+      freqPtr,
+      magPtr,
+    );
+    final double freq = freqPtr.value;
+    final double mag = magPtr.value;
 
-    //final estimatedSampleRate = samples / durationInSeconds;
+    malloc.free(samplePtr);
+    malloc.free(freqPtr);
+    malloc.free(magPtr);
 
-    peakFrequency = maxI * freqBin;
-    peakMagnitude = maxM * 1.0;
+    peakFrequency = freq;
+    peakMagnitude = mag;
 
-    if (peakFrequency! > 120 && peakFrequency! < 380 && peakMagnitude! > 500) {
+    if (detected == 1) {
       if (!_verdict) {
-        refreshUi(() {
-          omCount++;
-        });
+        omCount++;
         _verdict = true;
       }
     } else {
       _verdict = false;
     }
+
     if (kDebugMode) {
-      print(
-        'maxI*freqBin: ${peakFrequency!.toStringAsFixed(1)} Hz | maxM ${peakMagnitude!.toStringAsFixed(1)}',
-      );
+      print('[OM Detected: $detected] $freq Hz | $mag');
     }
+
+    _refreshUi?.call(() {});
   }
 
   void _onError(Object e) {
-    if (kDebugMode) print('Error: $e');
+    if (kDebugMode) print('Audio Error: $e');
   }
 }

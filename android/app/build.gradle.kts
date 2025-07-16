@@ -9,6 +9,12 @@ android {
     namespace = "com.example.om"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "29.0.13599879"
+    
+    externalNativeBuild {
+        cmake {
+            path = file("../../native/src/CMakeLists.txt")
+        }
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

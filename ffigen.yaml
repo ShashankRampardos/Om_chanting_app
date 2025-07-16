@@ -1,0 +1,6 @@
+name: OmBindings
+description: Dart bindings for native OM detection logic
+output: lib/om_bindings.dart
+headers:
+  entry-points:
+    - native/src/om.h
