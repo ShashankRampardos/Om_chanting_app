@@ -31,10 +31,12 @@ class OmDetectionController {
   int omCount = 0;
   bool _verdict = false;
   int _sampleRate = 44100;
+  bool isStreamActive = false; //false means inactive
 
   void Function(void Function())? _refreshUi;
 
   Future<void> start(void Function(void Function()) refreshUi) async {
+    isStreamActive = true;
     _refreshUi = refreshUi;
     await _audioCapture.init();
     try {
@@ -61,6 +63,7 @@ class OmDetectionController {
   }
 
   void stop(void Function(void Function()) refreshUi) {
+    isStreamActive = false;
     _audioCapture.stop();
     isRecording = false;
     refreshUi(() {});
@@ -72,11 +75,35 @@ class OmDetectionController {
     });
   }
 
+  void incrementCount(void Function(void Function()) refreshUi) {
+    refreshUi(() {
+      omCount++;
+    });
+  }
+
+  void decrementCount(void Function(void Function()) refreshUi) {
+    refreshUi(() {
+      if (omCount > 0) omCount--;
+    });
+  }
+
+  bool pauseOrPlayCounting(void Function(void Function()) refreshUi) {
+    if (isStreamActive) {
+      //if stream is active
+      stop(refreshUi);
+      return false; //now deactive, deactive status is false
+    } else {
+      start(refreshUi);
+      return true; //now active, active status is true
+    }
+  }
+
   void _listener(dynamic obj) {
     final Float32List buffer = Float32List.fromList(List<double>.from(obj));
     final Pointer<Float> samplePtr = malloc.allocate<Float>(
       buffer.length * sizeOf<Float>(),
     );
+
     for (int i = 0; i < buffer.length; i++) {
       samplePtr[i] = buffer[i];
     }

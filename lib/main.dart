@@ -5,8 +5,8 @@ import 'package:om/screens/tabs.dart';
 final theme = ThemeData(
   useMaterial3: true,
   colorScheme: ColorScheme.fromSeed(
-    brightness: Brightness.dark,
-    seedColor: const Color.fromARGB(255, 254, 135, 23),
+    brightness: Brightness.light,
+    seedColor: const Color.fromARGB(255, 64, 204, 255),
   ),
   textTheme: GoogleFonts.latoTextTheme(),
 );

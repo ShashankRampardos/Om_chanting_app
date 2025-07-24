@@ -25,8 +25,19 @@ class _TabsScreenState extends State<TabsScreen> {
     return SafeArea(
       child: Scaffold(
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/background_images/background1.jpg', // Replace with your image path
+                fit: BoxFit.cover,
+              ),
+            ),
+            OmApp(),
+          ],
+        ),
         appBar: AppBar(
-          centerTitle: true,
+          centerTitle: false,
           title: Text('Chanting'),
           actions: [
             IconButton(
@@ -37,16 +48,19 @@ class _TabsScreenState extends State<TabsScreen> {
             ),
           ],
         ),
-        body: OmApp(),
+        //body: OmApp(),
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: 1,
           onTap: (index) {},
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.dining_sharp),
-              label: 'Categories',
+              icon: Icon(Icons.leaderboard),
+              label: 'Analytics',
             ),
-            BottomNavigationBarItem(icon: Icon(Icons.star), label: 'Favorites'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.format_list_numbered_rtl_sharp),
+              label: 'Leadboard',
+            ),
           ],
         ),
       ),
