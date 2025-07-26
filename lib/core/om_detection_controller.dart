@@ -11,10 +11,39 @@ import 'package:om/om_bindings.dart';
 
 bool kDebugMode = true;
 
+// dart:ffi typedefs............
+
+typedef SetThreshNative = Void Function(Double);
+typedef GetMagnitudeThreshold = Double Function();
+typedef Calibration = Void Function();
+typedef ResetOmState = Void Function();
+
+final DynamicLibrary dylib = () {
+  if (Platform.isAndroid) return DynamicLibrary.open('libom.so');
+  if (Platform.isIOS) return DynamicLibrary.process();
+  if (Platform.isLinux) return DynamicLibrary.open('libom.so');
+  if (Platform.isMacOS) return DynamicLibrary.open('libom.dylib');
+  if (Platform.isWindows) return DynamicLibrary.open('om.dll');
+  throw UnsupportedError('Unsupported platform');
+}();
+
+final calibrate = dylib.lookupFunction<Calibration, void Function()>(
+  'calibrate',
+);
+final resetOmState = dylib.lookupFunction<ResetOmState, void Function()>(
+  'resetOmState',
+);
+final setThresh = dylib.lookupFunction<SetThreshNative, void Function(double)>(
+  'setMagnitudeThreshold',
+);
+final getMagnitudeThreshold = dylib
+    .lookupFunction<GetMagnitudeThreshold, double Function()>(
+      'getMagnitudeThreshold',
+    );
+//...............
+
 /// Load C++ library and bind
-final dylib = Platform.isAndroid
-    ? DynamicLibrary.open("libom.so")
-    : DynamicLibrary.process();
+
 final omBindings = OmBindings(dylib);
 
 class OmDetectionController {
@@ -29,9 +58,13 @@ class OmDetectionController {
   double? peakFrequency;
   double? peakMagnitude;
   int omCount = 0;
-  bool _verdict = false;
+  static const int maxCountUps = 31;
+
+  int omBuffer = 0;
+  bool _verdict = false; //for om detection if else condition
   int _sampleRate = 44100;
-  bool isStreamActive = false; //false means inactive
+  bool isStreamActive =
+      false; //false means inactive, this if for play/pause button on counter circle
 
   void Function(void Function())? _refreshUi;
 
@@ -65,6 +98,7 @@ class OmDetectionController {
   void stop(void Function(void Function()) refreshUi) {
     isStreamActive = false;
     _audioCapture.stop();
+    resetOmState();
     isRecording = false;
     refreshUi(() {});
   }
@@ -128,22 +162,33 @@ class OmDetectionController {
     peakMagnitude = mag;
 
     if (detected == 1) {
-      if (!_verdict) {
+      omBuffer++;
+      if (!_verdict && omBuffer >= maxCountUps) {
         omCount++;
         _verdict = true;
       }
     } else {
       _verdict = false;
+      omBuffer = 0;
     }
 
     if (kDebugMode) {
-      print('[OM Detected: $detected] $freq Hz | $mag');
+      print(
+        '[OM Detected: $detected] thrashold: ${getMagnitudeThreshold()} $freq Hz | $mag',
+      );
     }
 
     _refreshUi?.call(() {});
   }
 
+  void calibrateWithBackgroundNoise() {
+    calibrate();
+  }
+
   void _onError(Object e) {
     if (kDebugMode) print('Audio Error: $e');
   }
+
+  //caliberation code part below.....
+  bool isCalibrating = false;
 }

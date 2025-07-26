@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:number_inc_dec/number_inc_dec.dart';
-import 'package:scidart/scidart.dart';
+import 'package:om/core/om_detection_controller.dart';
+import 'package:om/widgets/settings_widgets/target_bottom_sheet.dart';
+import 'package:om/widgets/settings_widgets/text_tile.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -11,76 +12,56 @@ class SettingsScreen extends StatelessWidget {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateInBottomSheet) {
-            return Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Align(
-                    alignment: Alignment.center,
-                    child: Text(
-                      textAlign: TextAlign.center,
-                      'Set your target chanting',
-                      style: Theme.of(context).textTheme.headlineSmall!
-                          .copyWith(
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                    ),
-                  ),
-                  Divider(thickness: 1, color: Colors.black),
-                  SizedBox(height: 10),
-                  SizedBox(
-                    height: 53,
-                    width: 150,
-                    child: NumberInputWithIncrementDecrement(
-                      controller: TextEditingController(),
-                      min: 0,
-                      max: 1000,
-                      incDecFactor: 1,
-                      initialValue: 11,
-                      numberFieldDecoration: InputDecoration(
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
-                        child: Text(
-                          'cancel',
-                          style: Theme.of(context).textTheme.titleLarge!
-                              .copyWith(
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () {},
-                        child: Text(
-                          'set',
-                          style: Theme.of(context).textTheme.titleLarge!
-                              .copyWith(
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
+            return TargetBottomSheet();
           },
         );
       },
     );
   }
 
-  void calibrateSound() {}
+  void caliberateSound(BuildContext context) {
+    final controller = OmDetectionController();
+    bool isDone = false;
+    bool isCalibrated = false;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx1, setButtonState) {
+          return AlertDialog(
+            title: Text('Caliberate'),
+            content: Text(
+              'caliberate with the background white noise like fan, wind,etc.',
+            ),
+            actions: [
+              if (!isDone)
+                ElevatedButton(
+                  onPressed: isCalibrated
+                      ? null
+                      : () async {
+                          setButtonState(() {
+                            isCalibrated = true;
+                          });
+                          controller.calibrateWithBackgroundNoise();
+                          await Future.delayed(Duration(seconds: 3));
+                          setButtonState(() {
+                            isDone = true;
+                          });
+                        },
+                  child: Text('caliberate'),
+                )
+              else
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(ctx1).pop();
+                  },
+                  child: Text('Done!'),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,58 +104,12 @@ class SettingsScreen extends StatelessWidget {
                 text: 'Caliberate with background noise',
                 icon: Icons.hearing,
                 executeSetting: () {
-                  //calibratenSound();
+                  caliberateSound(context);
                 },
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class TextTile extends StatelessWidget {
-  const TextTile({
-    super.key,
-    required this.text,
-    required this.icon,
-    required this.executeSetting,
-  });
-  final String text;
-  final IconData icon;
-  final void Function() executeSetting;
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: executeSetting,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon),
-                Text(
-                  text,
-                  style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Opacity(
-            opacity: 0.5,
-            child: Divider(
-              color: Theme.of(context).colorScheme.onSurface,
-              thickness: 1,
-              indent: 1,
-              endIndent: 1,
-            ),
-          ),
-        ],
       ),
     );
   }

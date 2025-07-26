@@ -10,7 +10,7 @@ class OmApp extends StatefulWidget {
 }
 
 class _OmAppState extends State<OmApp> {
-  final OmDetectionController controller = OmDetectionController();
+  final controller = OmDetectionController();
   Offset position = Offset(0, 0);
   bool isControllerActive = false;
   @override

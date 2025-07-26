@@ -5,10 +5,22 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+
+/// Core OM detection
 bool detect_om(float* samples, int length, double* peakFreq, double* peakMag);
+
+// /// Calibration workflow
+// void startCalibration();
+// void addCalibrationFrame(float* samples, int length);
+// void finishCalibration();
+
+// /// Threshold controls
+// void setMagnitudeThreshold(double threshold);
+// double getMagnitudeThreshold();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif // OM_H

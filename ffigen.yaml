@@ -1,6 +1,18 @@
 name: OmBindings
 description: Dart bindings for native OM detection logic
 output: lib/om_bindings.dart
+
 headers:
   entry-points:
     - native/src/om.h
+
+
+# Explicitly list the C APIs you want to import
+functions:
+  entry-points:
+    - detect_om
+    # - startCalibration
+    # - addCalibrationFrame
+    # - finishCalibration
+    # - setMagnitudeThreshold
+    # - getMagnitudeThreshold

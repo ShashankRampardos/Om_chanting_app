@@ -1,5 +1,6 @@
 // om.cpp
-#include "om.h"                       // your header
+#include "om.h"     
+#include<iostream>          
 #include <vector>
 #include <complex>
 #include <cmath>
@@ -9,10 +10,12 @@
 #include <set>
 #include <chrono>
 
-constexpr int    SAMPLE_RATE         = 44100;
-constexpr double OM_MIN_FREQ         = 140.0;
-constexpr double OM_MAX_FREQ         = 420.0;
-constexpr double MAGNITUDE_THRESHOLD = 80.0;
+
+constexpr int    SAMPLE_RATE         = 44100;  //below frequency thrasholds are set after taking samples of 3 people.
+constexpr double OM_MIN_FREQ         = 140.0;  // allow down to 140 Hz
+constexpr double OM_MAX_FREQ         = 820.0;  // allow up to 820 Hz
+
+static double gMagnitudeThreshold = 90.0;
 
 // Recursive Cooley–Tukey FFT
 void fft(std::vector<std::complex<double>>& data) {
@@ -85,10 +88,21 @@ public:
         if (s.empty()) throw std::runtime_error("MedianQueue::getMedian(): empty");
         return *median;
     }
-
+    T getMin() const {
+        if (s.empty()) throw std::runtime_error("MedianQueue::getMedian(): empty");
+        return *s.begin();
+    }
+    T getMax() const {
+        if (s.empty()) throw std::runtime_error("MedianQueue::getMedian(): empty");
+        return *prev(s.end());
+    } 
     bool empty() const   { return s.empty(); }
     size_t size() const  { return s.size();  }
 };
+
+static MedianQueue<double> freqQ, magQ;
+static std::deque<std::chrono::steady_clock::time_point> times;
+constexpr int WINDOW_MS = 1000;//1000 milli second window for median queue.
 
 // Exposed C API for Flutter FFI
 extern "C"
@@ -97,11 +111,6 @@ bool detect_om(float* samples,
                double* outFreq,
                double* outMag)
 {
-    // 500 ms sliding window state
-    static MedianQueue<double> freqQ, magQ;
-    static std::deque<std::chrono::steady_clock::time_point> times;
-    constexpr int WINDOW_MS = 1000;
-
     // 1) Zero-pad to next power of two
     size_t n = 1;
     while (n < (size_t)length) n <<= 1;
@@ -145,7 +154,7 @@ bool detect_om(float* samples,
     while (!times.empty() &&
            std::chrono::duration_cast<std::chrono::milliseconds>(now - times.front()).count()
              > WINDOW_MS)
-    {
+    {   
         times.pop_front();
         freqQ.pop();
         magQ.pop();
@@ -157,9 +166,81 @@ bool detect_om(float* samples,
 
     *outFreq = medFreq;
     *outMag  = medMag;
-
+    std :: cout<<gMagnitudeThreshold<<std :: endl;
     // 9) Range + threshold check
     return (medFreq >= OM_MIN_FREQ &&
             medFreq <= OM_MAX_FREQ &&
-            medMag  >  MAGNITUDE_THRESHOLD);
+            medMag  >  gMagnitudeThreshold);
 }
+
+extern "C" void calibrate() {
+    if (magQ.size() < 2) return;  // ensure at least two samples
+
+    // compute your “raw” threshold, 95th percentile using uniform distribution percentile formula and multiply with 1.5 to get slightly higher value
+    double rawThresh = (magQ.getMin()
+                       + 0.95 * (magQ.getMax() - magQ.getMin()))
+                       * 1.5;
+
+    // exponential smoothing: β fraction of new, (1-β) of old
+    const double β = 0.2;  
+    gMagnitudeThreshold = β * rawThresh
+                        + (1.0 - β) * gMagnitudeThreshold;
+}
+
+extern "C" void resetOmState() {
+    // Clear median queues
+    while (!freqQ.empty()) freqQ.pop();
+    while (!magQ.empty())  magQ.pop();
+    // Clear timestamps
+    times.clear();
+    
+}
+
+// For manual override from Dart
+extern "C" void setMagnitudeThreshold(double t) {
+    gMagnitudeThreshold = t;
+}
+
+extern "C" double getMagnitudeThreshold() {
+    return gMagnitudeThreshold;
+}
+
+
+//calibration part code below...
+
+// static std::vector<double> calibPeaks;
+
+// Call at start of calibration
+// extern "C" void startCalibration() {
+//     calibPeaks.clear();
+// }
+
+// // Call once per audio frame of size `length`
+// extern "C" void addCalibrationFrame(float* samples, int length) {
+//     //Copy+window+zero-pad
+//     size_t n = 1; while (n < (size_t)length) n <<= 1;
+//     std::vector<std::complex<double>> buf(n, 0.0);
+//     for (int i = 0; i < length; ++i) {
+//         double w = 0.5 * (1 - cos(2*M_PI*i/(length-1)));
+//         buf[i] = samples[i] * w;
+//     }
+    
+//     fft(buf);
+   
+//     double maxMag = 0.0;
+//     for (size_t i = 0; i < n/2; ++i)
+//         maxMag = std::max(maxMag, std::abs(buf[i]));
+//     calibPeaks.push_back(maxMag);
+// }
+
+// // Call after all frames are added—returns new threshold
+// extern "C" double finishCalibration() {
+//     if (calibPeaks.empty()) return gMagnitudeThreshold;
+//     size_t idx = size_t(calibPeaks.size() * 0.95);
+//     std::nth_element(calibPeaks.begin(),
+//                      calibPeaks.begin() + idx,
+//                      calibPeaks.end());
+//     double p95 = calibPeaks[idx];
+//     gMagnitudeThreshold = 100;
+//     return gMagnitudeThreshold;
+// }
