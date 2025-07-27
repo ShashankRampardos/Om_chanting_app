@@ -8,7 +8,7 @@ extern "C" {
 #include <stdbool.h>
 
 /// Core OM detection
-bool detect_om(float* samples, int length, double* peakFreq, double* peakMag);
+bool detect_om(float* samples, int length);
 
 // /// Calibration workflow
 // void startCalibration();

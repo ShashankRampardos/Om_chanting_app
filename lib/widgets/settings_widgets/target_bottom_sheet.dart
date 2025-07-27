@@ -5,6 +5,7 @@ class TargetBottomSheet extends StatelessWidget {
   const TargetBottomSheet({super.key});
   @override
   Widget build(BuildContext context) {
+    int target;
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
@@ -27,6 +28,7 @@ class TargetBottomSheet extends StatelessWidget {
             width: 150,
             child: NumberInputWithIncrementDecrement(
               controller: TextEditingController(),
+              onSubmitted: (newValue) => target = newValue.toInt(),
               min: 0,
               max: 1000,
               incDecFactor: 1,

@@ -80,7 +80,9 @@ class _OmAppState extends State<OmApp> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Theme.of(context).colorScheme.inversePrimary,
+                    color: controller.isDetected
+                        ? const Color.fromARGB(255, 255, 176, 28)
+                        : Theme.of(context).colorScheme.inversePrimary,
                     width: 4,
                   ),
                   boxShadow: [
@@ -88,7 +90,9 @@ class _OmAppState extends State<OmApp> {
                       color: Theme.of(
                         context,
                       ).colorScheme.onTertiary.withAlpha(140),
-                      spreadRadius: 15, // this makes it glow outside
+                      spreadRadius: controller.isDetected
+                          ? 20
+                          : 15, // this makes it glow outside
                       blurRadius: 20,
                     ),
                   ],

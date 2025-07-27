@@ -103,14 +103,14 @@ public:
 static MedianQueue<double> freqQ, magQ;
 static std::deque<std::chrono::steady_clock::time_point> times;
 constexpr int WINDOW_MS = 1000;//1000 milli second window for median queue.
+double outFreq;
+double outMag;
 
 // Exposed C API for Flutter FFI
 extern "C"
 bool detect_om(float* samples,
-               int   length,
-               double* outFreq,
-               double* outMag)
-{
+               int   length)
+{    
     // 1) Zero-pad to next power of two
     size_t n = 1;
     while (n < (size_t)length) n <<= 1;
@@ -164,8 +164,8 @@ bool detect_om(float* samples,
     double medFreq = freqQ.getMedian();
     double medMag  = magQ.getMedian();
 
-    *outFreq = medFreq;
-    *outMag  = medMag;
+    outFreq = medFreq;
+    outMag  = medMag;
     std :: cout<<gMagnitudeThreshold<<std :: endl;
     // 9) Range + threshold check
     return (medFreq >= OM_MIN_FREQ &&
@@ -203,6 +203,14 @@ extern "C" void setMagnitudeThreshold(double t) {
 
 extern "C" double getMagnitudeThreshold() {
     return gMagnitudeThreshold;
+}
+
+extern "C" double getRawMagnitude() {
+    return outMag;
+}
+
+extern "C" double getRawFrequency() {
+    return outFreq;
 }
 
 

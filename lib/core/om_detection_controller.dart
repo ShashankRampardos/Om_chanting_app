@@ -17,6 +17,9 @@ typedef SetThreshNative = Void Function(Double);
 typedef GetMagnitudeThreshold = Double Function();
 typedef Calibration = Void Function();
 typedef ResetOmState = Void Function();
+typedef OmDetectionNative = Bool Function(Pointer<Float>, Int32);
+typedef GetRawFrequency = Double Function();
+typedef GetRawMagnitude = Double Function();
 
 final DynamicLibrary dylib = () {
   if (Platform.isAndroid) return DynamicLibrary.open('libom.so');
@@ -26,6 +29,12 @@ final DynamicLibrary dylib = () {
   if (Platform.isWindows) return DynamicLibrary.open('om.dll');
   throw UnsupportedError('Unsupported platform');
 }();
+
+//these are like <nativeDeclaration,dartDeclaration>('native_function_name');
+final omDetection = dylib
+    .lookupFunction<OmDetectionNative, bool Function(Pointer<Float>, int)>(
+      'detect_om',
+    );
 
 final calibrate = dylib.lookupFunction<Calibration, void Function()>(
   'calibrate',
@@ -40,6 +49,10 @@ final getMagnitudeThreshold = dylib
     .lookupFunction<GetMagnitudeThreshold, double Function()>(
       'getMagnitudeThreshold',
     );
+final getRawFrequency = dylib
+    .lookupFunction<GetRawFrequency, double Function()>('getRawFrequency');
+final getRawMagnitude = dylib
+    .lookupFunction<GetRawMagnitude, double Function()>('getRawMagnitude');
 //...............
 
 /// Load C++ library and bind
@@ -59,6 +72,7 @@ class OmDetectionController {
   double? peakMagnitude;
   int omCount = 0;
   static const int maxCountUps = 31;
+  bool isDetected = false;
 
   int omBuffer = 0;
   bool _verdict = false; //for om detection if else condition
@@ -142,26 +156,11 @@ class OmDetectionController {
       samplePtr[i] = buffer[i];
     }
 
-    final Pointer<Double> freqPtr = malloc.allocate<Double>(sizeOf<Double>());
-    final Pointer<Double> magPtr = malloc.allocate<Double>(sizeOf<Double>());
-
-    final int detected = omBindings.detect_om(
-      samplePtr,
-      buffer.length,
-      freqPtr,
-      magPtr,
-    );
-    final double freq = freqPtr.value;
-    final double mag = magPtr.value;
+    isDetected = omDetection(samplePtr, buffer.length);
 
     malloc.free(samplePtr);
-    malloc.free(freqPtr);
-    malloc.free(magPtr);
 
-    peakFrequency = freq;
-    peakMagnitude = mag;
-
-    if (detected == 1) {
+    if (isDetected) {
       omBuffer++;
       if (!_verdict && omBuffer >= maxCountUps) {
         omCount++;
@@ -174,7 +173,7 @@ class OmDetectionController {
 
     if (kDebugMode) {
       print(
-        '[OM Detected: $detected] thrashold: ${getMagnitudeThreshold()} $freq Hz | $mag',
+        '[OM Detected: ${isDetected ? '1' : '0'}] thrashold: ${getMagnitudeThreshold()} ${getRawFrequency()} Hz | ${getRawMagnitude()}',
       );
     }
 
@@ -183,6 +182,18 @@ class OmDetectionController {
 
   void calibrateWithBackgroundNoise() {
     calibrate();
+  }
+
+  double getThreshold() {
+    return getMagnitudeThreshold();
+  }
+
+  double getRawFreq() {
+    return getRawFrequency();
+  }
+
+  double getRawMag() {
+    return getRawMagnitude();
   }
 
   void _onError(Object e) {
