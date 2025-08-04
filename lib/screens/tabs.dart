@@ -14,7 +14,12 @@ class _TabsScreenState extends State<TabsScreen> {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
-        barrierColor: Colors.black.withAlpha(150), // optional background dim
+        barrierColor: const Color.fromARGB(
+          129,
+          0,
+          0,
+          0,
+        ).withAlpha(150), // optional background dim
         pageBuilder: (_, __, ___) => const SettingsScreen(),
       ),
     );
