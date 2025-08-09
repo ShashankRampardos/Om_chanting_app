@@ -3,12 +3,16 @@ class Sound {
   final String name;
   final String previewUrl;
   final String downloadLink;
+  String? localFullPath;
+  String? localPreviewPath;
 
-  const Sound({
+  Sound({
     required this.id,
     required this.name,
     required this.previewUrl,
     required this.downloadLink,
+    this.localFullPath,
+    this.localPreviewPath,
   });
 
   // Factory constructor to create a Sound instance from JSON
