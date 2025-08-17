@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:om/models/sound.dart';
+import 'package:om/providers/player.dart';
 import 'package:om/providers/sounds_downloads_state.dart';
 
 class SoundPickerScreen extends ConsumerStatefulWidget {
@@ -23,7 +24,7 @@ class _SoundPickerScreenState extends ConsumerState<SoundPickerScreen> {
 
   Future<void> _callApiAndFetchSounds() async {
     final String url =
-        'https://freesound.org/apiv2/search/text/?query=nature calm relax&fields=id,name,previews,download&sort=rating_desc&page_size=40';
+        'https://freesound.org/apiv2/search/text/?query=nature,calm,relax&fields=id,name,previews,download&sort=rating_desc&page_size=100';
 
     try {
       final data = await http
@@ -35,23 +36,29 @@ class _SoundPickerScreenState extends ConsumerState<SoundPickerScreen> {
               throw TimeoutException('Request timed out');
             },
           );
-
+      //print(data.body);
       if (data.statusCode != 200) {
         print('fat gaya logic');
         throw TimeoutException('Request timed out');
       }
-
       final Map<String, dynamic> jsonData = json.decode(data.body);
       final List<dynamic> result = jsonData['results'];
-      setState(() {
-        _sounds.clear();
-        for (final val in result) {
-          _sounds.add(Sound.fromJson(val));
+      for (final val in result) {
+        final sound = await Sound.fromJsonWithPaths(
+          val,
+        ); //exception handling return null if file path not found
+        if (sound != null) {
+          _sounds.add(sound);
         }
+      }
+
+      setState(() {
         isLoading = false;
       });
-      //registering all sounds in the provider if not already registered
+
+      // registering all sounds in the provider
       ref.read(soundsDownloadsStateProvider.notifier).initSounds(_sounds);
+      ref.read(soundPlayerProvider.notifier).initSounds(_sounds);
     } catch (e) {
       print('Error occurred: $e');
       setState(() {
@@ -61,16 +68,17 @@ class _SoundPickerScreenState extends ConsumerState<SoundPickerScreen> {
     }
   }
 
-  bool _playingSound(Sound sound) {
-    final localPath = sound.localPreviewPath;
-    //play return true when playing and false when stopped
-    return false;
-  }
-
   @override
   void initState() {
     super.initState();
-    _callApiAndFetchSounds();
+    try {
+      _callApiAndFetchSounds();
+    } catch (e, st) {
+      debugPrint('error on calling sound api or fetching sounds: $e');
+      debugPrint('stackTrace: $st');
+    }
+    //sound provider may konsa player use karna ha vo
+    ref.read(soundPlayerProvider.notifier).setPlayer(widget.title);
   }
 
   @override
@@ -89,28 +97,36 @@ class _SoundPickerScreenState extends ConsumerState<SoundPickerScreen> {
             context,
           ).colorScheme.onSecondaryFixedVariant,
         ),
-        body: _isConnectionLost
-            ? Center(
-                child: Text(
-                  'Connection lost. Please try again later.',
-                  style: Theme.of(context).textTheme.bodyLarge,
+        body: PopScope(
+          canPop: true,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) {
+              ref.read(soundPlayerProvider.notifier).stop(null);
+            }
+          },
+          child: _isConnectionLost
+              ? Center(
+                  child: Text(
+                    'Connection lost. Please try again later.',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                )
+              : isLoading
+              ? Center(
+                  child: SizedBox(
+                    height: 160,
+                    width: 160,
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              : Center(
+                  child: ListView(
+                    children: [
+                      for (final sound in _sounds) SoundCard(sound: sound),
+                    ],
+                  ),
                 ),
-              )
-            : isLoading
-            ? Center(
-                child: SizedBox(
-                  height: 160,
-                  width: 160,
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            : Center(
-                child: ListView(
-                  children: [
-                    for (final sound in _sounds) SoundCard(sound: sound),
-                  ],
-                ),
-              ),
+        ),
       ),
     );
   }
@@ -126,14 +142,27 @@ class SoundCard extends ConsumerStatefulWidget {
 
 class _SoundCardState extends ConsumerState<SoundCard> {
   bool isLoading = false;
+
   @override
   Widget build(BuildContext context) {
+    final isPlaying = ref.watch(soundPlayerProvider)[widget.sound.id];
+    final SoundPlayerNotifier = ref.watch(soundPlayerProvider.notifier);
+    if (isPlaying == null) {
+      throw Exception('yahi ha vo');
+    }
     final isDownloaded =
-        ref.watch(soundsDownloadsStateProvider)[widget.sound.name] ??
+        ref.watch(soundsDownloadsStateProvider)[widget.sound.id] ??
         false; //null ha tho false assign
     final downloadNotifier = ref.watch(soundsDownloadsStateProvider.notifier);
 
     return InkWell(
+      onTap: () {
+        if (isDownloaded) {
+          //downloaded kare bina pop kia tho gadbad
+          SoundPlayerNotifier.stop(widget.sound.id);
+          Navigator.of(context).pop(widget.sound);
+        }
+      },
       child: Column(
         children: [
           Row(
@@ -155,11 +184,16 @@ class _SoundCardState extends ConsumerState<SoundCard> {
                     ? CircularProgressIndicator()
                     : IconButton(
                         onPressed: isDownloaded
-                            ? () {
-                                // setState(() {
-                                //   isPlaying = widget.playing(widget.sound);
-                                // });
-                              }
+                            ? (isPlaying
+                                  ? () {
+                                      SoundPlayerNotifier.stop(widget.sound.id);
+                                    }
+                                  : () {
+                                      SoundPlayerNotifier.play(
+                                        widget.sound.localPreviewPath,
+                                        widget.sound.id,
+                                      );
+                                    })
                             : () async {
                                 try {
                                   setState(() {
@@ -168,8 +202,9 @@ class _SoundCardState extends ConsumerState<SoundCard> {
                                   await downloadNotifier.downloadSound(
                                     widget.sound,
                                   );
-                                } catch (e) {
-                                  print(e);
+                                } catch (e, stackTrace) {
+                                  print('full Download failed: $e');
+                                  print('trace: $stackTrace');
                                 } finally {
                                   setState(() {
                                     isLoading = false;
@@ -178,7 +213,7 @@ class _SoundCardState extends ConsumerState<SoundCard> {
                               },
                         icon: Icon(
                           isDownloaded
-                              ? (false
+                              ? (isPlaying!
                                     ? Icons.stop
                                     : Icons
                                           .play_arrow) //badme replace kardunga false ko correct logic say
@@ -191,7 +226,6 @@ class _SoundCardState extends ConsumerState<SoundCard> {
           Opacity(opacity: 0.8, child: Divider()),
         ],
       ),
-      onTap: () {},
     );
   }
 }

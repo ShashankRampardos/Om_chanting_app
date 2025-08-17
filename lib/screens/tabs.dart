@@ -34,7 +34,7 @@ class _TabsScreenState extends State<TabsScreen> {
           children: [
             Positioned.fill(
               child: Image.asset(
-                'assets/images/background_images/background1.jpg', // Replace with your image path
+                'assets/images/background_images/background1.jpg',
                 fit: BoxFit.cover,
               ),
             ),

@@ -13,6 +13,10 @@ final theme = ThemeData(
 );
 void main() => runApp(
   ProviderScope(
-    child: MaterialApp(theme: theme, home: TabsScreen()),
+    child: MaterialApp(
+      theme: theme,
+      debugShowCheckedModeBanner: false,
+      home: TabsScreen(),
+    ),
   ),
 );
