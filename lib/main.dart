@@ -15,7 +15,6 @@ void main() => runApp(
   ProviderScope(
     child: MaterialApp(
       theme: theme,
-      debugShowCheckedModeBanner: false,
       home: TabsScreen(),
     ),
   ),

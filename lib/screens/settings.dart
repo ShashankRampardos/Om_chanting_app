@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:om/core/om_detection_controller.dart';
 import 'package:om/providers/alert_sound.dart';
 import 'package:om/providers/bg_sound.dart';
 import 'package:om/providers/player.dart';
+import 'package:om/screens/about.dart';
 import 'package:om/screens/sound_picker.dart';
 import 'package:om/widgets/settings_widgets/target_bottom_sheet.dart';
 import 'package:om/widgets/settings_widgets/text_tile.dart';
@@ -237,7 +239,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           const SoundPickerScreen(title: 'background sound'),
                     ),
                   );
-                  backgroundSound.setSound(sound);
+                  if (sound != null) {
+                    backgroundSound.setSound(sound);
+                  }
                 },
               ),
               TextTile(
@@ -260,6 +264,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 icon: Icons.hearing,
                 executeSetting: () {
                   _caliberateSound(context);
+                },
+              ),
+              TextTile(
+                text: 'About',
+                icon: FontAwesomeIcons.circleInfo,
+                executeSetting: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AboutScreen(),
+                    ),
+                  );
                 },
               ),
             ],

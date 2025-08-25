@@ -7,6 +7,10 @@ class AlertSound extends StateNotifier<Sound?> {
   void setSound(Sound sound) {
     state = sound;
   }
+
+  Sound? getSound() {
+    return state;
+  }
 }
 
 final alertSoundNotifierProvider = StateNotifierProvider<AlertSound, Sound?>((

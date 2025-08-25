@@ -4,6 +4,8 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:flutter_audio_capture/flutter_audio_capture.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:om/providers/om_controller.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/services.dart';
 import 'package:ffi/ffi.dart';
@@ -70,7 +72,7 @@ class OmDetectionController {
   bool isRecording = false;
   double? peakFrequency;
   double? peakMagnitude;
-  int omCount = 0;
+  //int omCount = 0;
   static const int maxCountUps = 31;
   bool isDetected = false;
 
@@ -81,10 +83,16 @@ class OmDetectionController {
       false; //false means inactive, this if for play/pause button on counter circle
 
   void Function(void Function())? _refreshUi;
+  WidgetRef? _ref;
 
-  Future<void> start(void Function(void Function()) refreshUi) async {
+  Future<void> start(
+    void Function(void Function()) refreshUi,
+    WidgetRef ref,
+  ) async {
     isStreamActive = true;
     _refreshUi = refreshUi;
+    _ref = ref;
+
     await _audioCapture.init();
     try {
       final rate = await _channel.invokeMethod<int>('getSampleRate');
@@ -109,39 +117,51 @@ class OmDetectionController {
     refreshUi(() {});
   }
 
-  void stop(void Function(void Function()) refreshUi) {
+  void stop() {
     isStreamActive = false;
     _audioCapture.stop();
     resetOmState();
     isRecording = false;
-    refreshUi(() {});
+    _refreshUi!(() {});
   }
 
-  void resetCount(void Function(void Function()) refreshUi) {
-    refreshUi(() {
-      omCount = 0;
+  void resetCount() {
+    _refreshUi!(() {
+      //omCount = 0;
+      _ref!.read(omControllerProvider.notifier).setOmCount(0);
     });
   }
 
-  void incrementCount(void Function(void Function()) refreshUi) {
-    refreshUi(() {
-      omCount++;
+  void incrementCount() {
+    _refreshUi!(() {
+      //omCount++;
+      _ref!
+          .read(omControllerProvider.notifier)
+          .setOmCount(_ref!.read(omControllerProvider) + 1);
     });
   }
 
-  void decrementCount(void Function(void Function()) refreshUi) {
-    refreshUi(() {
-      if (omCount > 0) omCount--;
+  void decrementCount() {
+    _refreshUi!(() {
+      if (_ref!.read(omControllerProvider) > 0) {
+        //omCount--;
+        _ref!
+            .read(omControllerProvider.notifier)
+            .setOmCount(_ref!.read(omControllerProvider) - 1);
+      }
     });
   }
 
-  bool pauseOrPlayCounting(void Function(void Function()) refreshUi) {
+  bool pauseOrPlayCounting(
+    void Function(void Function()) refreshUi,
+    WidgetRef ref,
+  ) {
     if (isStreamActive) {
       //if stream is active
-      stop(refreshUi);
+      stop();
       return false; //now deactive, deactive status is false
     } else {
-      start(refreshUi);
+      start(refreshUi, ref);
       return true; //now active, active status is true
     }
   }
@@ -163,8 +183,17 @@ class OmDetectionController {
     if (isDetected) {
       omBuffer++;
       if (!_verdict && omBuffer >= maxCountUps) {
-        omCount++;
+        //omCount++;
+        _ref!
+            .read(omControllerProvider.notifier)
+            .setOmCount(_ref!.read(omControllerProvider) + 1);
         _verdict = true;
+
+        _refreshUi!.call(() {
+          _ref!
+              .read(omControllerProvider.notifier)
+              .setOmCount(_ref!.read(omControllerProvider) + 1);
+        });
       }
     } else {
       _verdict = false;
@@ -176,8 +205,9 @@ class OmDetectionController {
         '[OM Detected: ${isDetected ? '1' : '0'}] thrashold: ${getMagnitudeThreshold()} ${getRawFrequency()} Hz | ${getRawMagnitude()}',
       );
     }
-
-    _refreshUi?.call(() {});
+    _refreshUi!(
+      () {},
+    ); //refresh ui to get upadated isDetected in the om counting widget
   }
 
   void calibrateWithBackgroundNoise() {

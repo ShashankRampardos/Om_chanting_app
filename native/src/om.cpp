@@ -15,7 +15,7 @@ constexpr int    SAMPLE_RATE         = 44100;  //below frequency thrasholds are 
 constexpr double OM_MIN_FREQ         = 140.0;  // allow down to 140 Hz
 constexpr double OM_MAX_FREQ         = 820.0;  // allow up to 820 Hz
 
-static double gMagnitudeThreshold = 90.0;
+static double gMagnitudeThreshold = 150.0;
 
 // Recursive Cooley–Tukey FFT
 void fft(std::vector<std::complex<double>>& data) {

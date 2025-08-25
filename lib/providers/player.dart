@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:om/models/sound.dart';
@@ -6,8 +8,16 @@ class SoundPlayerState extends StateNotifier<Map<int, bool>> {
   SoundPlayerState() : super({}); // null = no file playing
   final alertPlayer = AudioPlayer();
   final backgroundPlayer = AudioPlayer();
-
+  String? playerInfo;
   AudioPlayer? player;
+
+  bool isPlaying() {
+    if (player != null) {
+      return player!.playing;
+    } else {
+      return false;
+    }
+  }
 
   void initSounds(List<Sound> sounds) {
     final currentMap = {...state};
@@ -20,11 +30,22 @@ class SoundPlayerState extends StateNotifier<Map<int, bool>> {
   void setPlayer(String? mode) {
     if (mode == null) {
       player = alertPlayer;
+      playerInfo = 'alert player';
     } else if (mode == 'alert sound') {
       player = alertPlayer;
-    } else {
+      playerInfo = 'alert sound';
+    } else if (mode == 'background sound') {
       player = backgroundPlayer;
+      playerInfo = 'background sound';
     }
+  }
+
+  String getPlayerInfo() {
+    return playerInfo ?? 'no player';
+  }
+
+  void setPlayerInfo(String info) {
+    playerInfo = info;
   }
 
   void setVolume(double volume) {
@@ -48,19 +69,25 @@ class SoundPlayerState extends StateNotifier<Map<int, bool>> {
           activeId: false,
         }; // mark previoius playing sound as stopped, i wanna play one sound at a time only
       }
-      await player!.setFilePath(filePath);
-      state = {...state, soundId: true}; // mark this sound as playing
-      await player!.play();
-      state = {...state, soundId: false}; // mark this sound as not playing
+      if (await File(filePath).exists()) {
+        print('file path before setFilePath:$filePath');
+        await player!.setFilePath(filePath);
+        state = {...state, soundId: true}; // mark this sound as playing
+        print('file path before playing:$filePath');
+        await player!.play();
+        state = {...state, soundId: false}; // mark this sound as not playing
+        print('file path after playing:$filePath');
+      } else {
+        print('file does not exist at path: $filePath');
+      }
     } catch (e, st) {
       print('error playing: $e');
       print('stackTrace: $st');
-    } finally {
-      state = {...state, soundId: false};
     }
   }
 
   Future<void> stop(int? soundId) async {
+    //if we got null in the argument then we will just stop a sound that is playing or do nothing if no sound is playing
     //kind of method polymorphysm
     try {
       if (soundId == null) {
@@ -81,7 +108,7 @@ class SoundPlayerState extends StateNotifier<Map<int, bool>> {
         }
       } else {
         await player!.stop();
-        state = {...state, soundId!: false}; // mark this sound as not playing
+        state = {...state, soundId: false}; // mark this sound as not playing
       }
     } catch (e, st) {
       print('error stopping sound: $e');

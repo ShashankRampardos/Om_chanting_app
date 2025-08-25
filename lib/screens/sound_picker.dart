@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:om/models/sound.dart';
+import 'package:om/providers/alert_sound.dart';
+import 'package:om/providers/bg_sound.dart';
 import 'package:om/providers/player.dart';
 import 'package:om/providers/sounds_downloads_state.dart';
 
@@ -83,6 +85,13 @@ class _SoundPickerScreenState extends ConsumerState<SoundPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final choosenAlertSound = ref
+        .watch(alertSoundNotifierProvider.notifier)
+        .getSound();
+    final choosenBgSound = ref
+        .watch(backgroundSoundNotifierProvider.notifier)
+        .getSound();
+
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(
@@ -101,7 +110,12 @@ class _SoundPickerScreenState extends ConsumerState<SoundPickerScreen> {
           canPop: true,
           onPopInvokedWithResult: (didPop, result) {
             if (didPop) {
-              ref.read(soundPlayerProvider.notifier).stop(null);
+              //stop a playing sound before leaving sound picker screen
+              ref
+                  .read(soundPlayerProvider.notifier)
+                  .stop(
+                    null,
+                  ); //null because we dont know the exact sound id which may or may not playing, if a sound is not playing then this will no nothing
             }
           },
           child: _isConnectionLost
@@ -122,7 +136,13 @@ class _SoundPickerScreenState extends ConsumerState<SoundPickerScreen> {
               : Center(
                   child: ListView(
                     children: [
-                      for (final sound in _sounds) SoundCard(sound: sound),
+                      for (final sound in _sounds)
+                        SoundCard(
+                          sound: sound,
+                          choosenSound: (widget.title == 'alert sound'
+                              ? choosenAlertSound
+                              : choosenBgSound), //null safety SoundCard widget may applied ho rakhi ha
+                        ),
                     ],
                   ),
                 ),
@@ -133,8 +153,9 @@ class _SoundPickerScreenState extends ConsumerState<SoundPickerScreen> {
 }
 
 class SoundCard extends ConsumerStatefulWidget {
-  const SoundCard({super.key, required this.sound});
+  const SoundCard({super.key, required this.sound, this.choosenSound});
   final Sound sound;
+  final Sound? choosenSound;
   //bool isPlaying = false;
   @override
   ConsumerState<SoundCard> createState() => _SoundCardState();
@@ -159,69 +180,82 @@ class _SoundCardState extends ConsumerState<SoundCard> {
       onTap: () {
         if (isDownloaded) {
           //downloaded kare bina pop kia tho gadbad
-          SoundPlayerNotifier.stop(widget.sound.id);
+          SoundPlayerNotifier.stop(
+            null,
+          ); //if a sound is playing then stop if otherwise do nothing
           Navigator.of(context).pop(widget.sound);
         }
       },
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-                  child: Text(
-                    widget.sound.name,
-                    style: Theme.of(context).textTheme.bodyLarge,
+          Container(
+            color:
+                widget.sound.id ==
+                    widget
+                        .choosenSound
+                        ?.id //null safety applied
+                ? const Color.fromARGB(255, 206, 206, 206)
+                : Colors.white,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+                    child: Text(
+                      widget.sound.name,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                child: isLoading
-                    ? CircularProgressIndicator()
-                    : IconButton(
-                        onPressed: isDownloaded
-                            ? (isPlaying
-                                  ? () {
-                                      SoundPlayerNotifier.stop(widget.sound.id);
-                                    }
-                                  : () {
-                                      SoundPlayerNotifier.play(
-                                        widget.sound.localPreviewPath,
-                                        widget.sound.id,
-                                      );
-                                    })
-                            : () async {
-                                try {
-                                  setState(() {
-                                    isLoading = true;
-                                  });
-                                  await downloadNotifier.downloadSound(
-                                    widget.sound,
-                                  );
-                                } catch (e, stackTrace) {
-                                  print('full Download failed: $e');
-                                  print('trace: $stackTrace');
-                                } finally {
-                                  setState(() {
-                                    isLoading = false;
-                                  });
-                                }
-                              },
-                        icon: Icon(
-                          isDownloaded
-                              ? (isPlaying!
-                                    ? Icons.stop
-                                    : Icons
-                                          .play_arrow) //badme replace kardunga false ko correct logic say
-                              : Icons.download,
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  child: isLoading
+                      ? CircularProgressIndicator()
+                      : IconButton(
+                          onPressed: isDownloaded
+                              ? (isPlaying
+                                    ? () {
+                                        SoundPlayerNotifier.stop(
+                                          widget.sound.id,
+                                        );
+                                      }
+                                    : () {
+                                        SoundPlayerNotifier.play(
+                                          widget.sound.localPreviewPath,
+                                          widget.sound.id,
+                                        );
+                                      })
+                              : () async {
+                                  try {
+                                    setState(() {
+                                      isLoading = true;
+                                    });
+                                    await downloadNotifier.downloadSound(
+                                      widget.sound,
+                                    );
+                                  } catch (e, stackTrace) {
+                                    print('full Download failed: $e');
+                                    print('trace: $stackTrace');
+                                  } finally {
+                                    setState(() {
+                                      isLoading = false;
+                                    });
+                                  }
+                                },
+                          icon: Icon(
+                            isDownloaded
+                                ? (isPlaying
+                                      ? Icons.stop
+                                      : Icons
+                                            .play_arrow) //badme replace kardunga false ko correct logic say
+                                : Icons.download,
+                          ),
                         ),
-                      ),
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
           Opacity(opacity: 0.8, child: Divider()),
         ],
