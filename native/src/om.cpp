@@ -102,7 +102,7 @@ public:
 
 static MedianQueue<double> freqQ, magQ;
 static std::deque<std::chrono::steady_clock::time_point> times;
-constexpr int WINDOW_MS = 1000;//1000 milli second window for median queue.
+constexpr int WINDOW_MS = 500;//500 milli second window for median queue.
 double outFreq;
 double outMag;
 

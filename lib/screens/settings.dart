@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:om/core/om_detection_controller.dart';
 import 'package:om/providers/alert_sound.dart';
 import 'package:om/providers/bg_sound.dart';
+import 'package:om/providers/omDetectionController.dart';
 import 'package:om/providers/player.dart';
 import 'package:om/screens/about.dart';
 import 'package:om/screens/sound_picker.dart';
@@ -28,13 +29,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _loadSoundLevel();
   }
 
-  void _targetBottomSheet(BuildContext context) {
+  void _targetBottomSheet(BuildContext context, String title) {
     showModalBottomSheet(
       context: context,
       builder: (context) {
         return Builder(
           builder: (context) {
-            return TargetBottomSheet();
+            return TargetBottomSheet(title: title);
           },
         );
       },
@@ -141,43 +142,47 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _caliberateSound(BuildContext context) {
-    final controller = OmDetectionController();
     bool isDone = false;
     bool isCalibrated = false;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx1, setButtonState) {
-          return AlertDialog(
-            title: Text('Caliberate'),
-            content: Text(
-              'caliberate with the background white noise like fan, wind,etc.',
-            ),
-            actions: [
-              if (!isDone)
-                ElevatedButton(
-                  onPressed: isCalibrated
-                      ? null
-                      : () async {
-                          setButtonState(() {
-                            isCalibrated = true;
-                          });
-                          controller.calibrateWithBackgroundNoise();
-                          await Future.delayed(Duration(seconds: 3));
-                          setButtonState(() {
-                            isDone = true;
-                          });
-                        },
-                  child: Text('caliberate'),
-                )
-              else
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(ctx1).pop();
-                  },
-                  child: Text('Done!'),
+          return Consumer(
+            builder: (context, ref, child) {
+              final omCtrl = ref.watch(omDetectionControllerProvider.notifier);
+              return AlertDialog(
+                title: Text('Caliberate'),
+                content: Text(
+                  'caliberate with the background white noise like fan, wind,etc.',
                 ),
-            ],
+                actions: [
+                  if (!isDone)
+                    ElevatedButton(
+                      onPressed: isCalibrated
+                          ? null
+                          : () async {
+                              setButtonState(() {
+                                isCalibrated = true;
+                              });
+                              omCtrl.calibrateWithBackgroundNoise();
+                              await Future.delayed(Duration(seconds: 3));
+                              setButtonState(() {
+                                isDone = true;
+                              });
+                            },
+                      child: Text('caliberate'),
+                    )
+                  else
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(ctx1).pop();
+                      },
+                      child: Text('Done!'),
+                    ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -209,10 +214,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             //crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextTile(
-                text: 'Target set',
-                icon: Icons.flag,
+                text: 'Chanting target set',
+                icon: FontAwesomeIcons.om,
                 executeSetting: () {
-                  _targetBottomSheet(context);
+                  _targetBottomSheet(context, 'chanting');
+                },
+              ),
+              TextTile(
+                text: 'Silent meditation target set',
+                icon: Icons.light_mode_rounded,
+                executeSetting: () {
+                  _targetBottomSheet(context, 'meditation');
                 },
               ),
               TextTile(

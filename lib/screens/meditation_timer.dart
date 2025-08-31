@@ -1,71 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:om/core/om_detection_controller.dart';
-import 'package:om/models/omDetectionState.dart';
+
 import 'package:om/providers/alert_sound.dart';
-import 'package:om/providers/omDetectionController.dart';
-import 'package:om/providers/om_controller.dart';
+
 import 'package:om/providers/player.dart';
-import 'package:om/providers/target.dart';
+import 'package:om/providers/target_time.dart';
+import 'package:om/providers/timer.dart';
 
 final containerKey = GlobalKey();
 
-class OmApp extends ConsumerStatefulWidget {
-  const OmApp({super.key});
+class MeditationApp extends ConsumerStatefulWidget {
+  const MeditationApp({super.key});
   @override
-  ConsumerState<OmApp> createState() => _OmAppState();
+  ConsumerState<MeditationApp> createState() => _MeditationAppState();
 }
 
-class _OmAppState extends ConsumerState<OmApp> {
+class _MeditationAppState extends ConsumerState<MeditationApp> {
   Offset position = Offset(0, 0);
-  //bool isControllerActive = false;
+  bool isTimerRunning = false;
+  bool targetMatched = false;
 
   @override
   void initState() {
     super.initState();
-
-    final omCtrl = ref.read(omDetectionControllerProvider.notifier);
-    // async ka safe call
-    Future.microtask(() async {
-      await omCtrl.start(); // ye async call
-      if (!mounted) return; // widget disposed na ho gaya ho
-      setState(() {}); // rebuild if UI update chahiye
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(timerProvider.notifier)
+          .initializeTimer(ref.read(targetTimeNotifierProvider));
     });
-    //isControllerActive = true;
-
-    // ref.onDispose(() {
-    //   ref.read(omDetectionControllerProvider.notifier).stop();
-    // });
+    //isTimerRunning = true;
   }
 
-  @override
-  void dispose() {
-    //ref.read(omDetectionControllerProvider.notifier).stop();
-    super.dispose();
-  }
-
-  bool targetMatched = false;
   @override
   Widget build(BuildContext ctx) {
-    final alertSound = ref.read(alertSoundNotifierProvider);
-    final playerNotifier = ref.read(soundPlayerProvider.notifier);
+    final targetTime = ref.watch(targetTimeNotifierProvider);
 
-    final omCtrl = ref.watch(omDetectionControllerProvider.notifier);
-    final omState = ref.watch(omDetectionControllerProvider);
+    final alertSound = ref.watch(alertSoundNotifierProvider);
+    final playerNotifier = ref.watch(soundPlayerProvider.notifier);
 
-    ref.listen<OmDetectionState>(omDetectionControllerProvider, (prev, next) {
-      final target = ref.read(targetNotifierProvider);
-      final alertSound = ref.read(alertSoundNotifierProvider);
+    final runningTime = ref.watch(timerProvider);
+    final runningTimeNotifier = ref.watch(timerProvider.notifier);
 
-      if (next.omCount == target) {
-        targetMatched = true;
+    ref.listen<int>(timerProvider, (prev, next) {
+      // final target = ref.read(targetNotifierProvider);
+      // final alertSound = ref.read(alertSoundNotifierProvider);
+
+      if (next == 0) {
+        setState(() {
+          targetMatched = true;
+          isTimerRunning = false;
+        }); //ruk gaya time
         if (alertSound != null) {
           final playerNotifier = ref.read(soundPlayerProvider.notifier);
           playerNotifier.setPlayer('alert sound');
           playerNotifier.play(alertSound.localPreviewPath, alertSound.id);
         }
-        omCtrl.resetCount();
-        omCtrl.stop();
+        runningTimeNotifier.reset(targetTime);
+
+        //print('$target || $next');
       }
     });
 
@@ -100,22 +92,39 @@ class _OmAppState extends ConsumerState<OmApp> {
                   if (dx <= -boundaryValue &&
                       (dy >= -10 && dy <= 10) &&
                       targetMatched != true) {
+                    //if target matched then dont use these methods
                     // this extra condition fixed a bug
-                    omCtrl.resetCount(); // Left
+                    runningTimeNotifier.reset(targetTime); // Left
+                    setState(
+                      () {
+                        isTimerRunning = false;
+                      },
+                    ); //when reset timer is reset and it is no more activily running
                   } else if (dx >= boundaryValue &&
                       (dy >= -levelValue && dy <= levelValue) &&
                       targetMatched != true) {
-                    //isControllerActive
-                    omCtrl.togglePausePlay(); // Right
+                    if (isTimerRunning) {
+                      runningTimeNotifier.stop();
+                      setState(
+                        () {
+                          isTimerRunning = false;
+                        },
+                      ); //when stop timer is stopped and it is no more activily running
+                    } else {
+                      runningTimeNotifier.start();
+                      setState(() {
+                        isTimerRunning = true;
+                      });
+                    } // Right
                   } else if (dy >= boundaryValue &&
                       (dx >= -levelValue && dx <= levelValue) &&
                       targetMatched != true) {
                     //coordinates system on screen is not exactyl similar to cartician system
-                    omCtrl.decrementCount(); // Bottom
+                    runningTimeNotifier.decrement(); // Bottom
                   } else if (dy <= -boundaryValue &&
                       (dx >= -levelValue && dx <= levelValue) &&
                       targetMatched != true) {
-                    omCtrl.incrementCount(); // Top
+                    runningTimeNotifier.increment(); // Top
                   }
                 },
                 child: Container(
@@ -126,7 +135,7 @@ class _OmAppState extends ConsumerState<OmApp> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: (omState.isDetected || targetMatched == true)
+                      color: (targetMatched == true)
                           ? const Color.fromARGB(255, 255, 176, 28)
                           : Theme.of(context).colorScheme.inversePrimary,
                       width: 4,
@@ -136,8 +145,7 @@ class _OmAppState extends ConsumerState<OmApp> {
                         color: Theme.of(
                           context,
                         ).colorScheme.onTertiary.withAlpha(140),
-                        spreadRadius:
-                            omState.isDetected || targetMatched == true
+                        spreadRadius: targetMatched == true
                             ? 20
                             : 15, // this makes it glow outside
                         blurRadius: 20,
@@ -148,8 +156,12 @@ class _OmAppState extends ConsumerState<OmApp> {
                       ? ((alertSound == null)
                             ? (TextButton(
                                 onPressed: () {
-                                  omCtrl.start();
-                                  targetMatched = false;
+                                  setState(() {
+                                    runningTimeNotifier.reset(targetTime);
+                                    playerNotifier.stop(null);
+                                    targetMatched = false;
+                                    isTimerRunning = false;
+                                  });
                                 },
                                 child: Text(
                                   'Tap here to restart (no sound selected to play)',
@@ -161,14 +173,12 @@ class _OmAppState extends ConsumerState<OmApp> {
                                 opacity: 0.8,
                                 child: IconButton(
                                   onPressed: () {
-                                    omCtrl.start();
-                                    //controller.resetCount();
-
+                                    runningTimeNotifier.reset(targetTime);
                                     playerNotifier.stop(alertSound.id);
-
-                                    //playerNotifier.setPlayer('background sound');
-                                    //playerNotifier.play();background again continue
-                                    targetMatched = false;
+                                    setState(() {
+                                      targetMatched = false;
+                                      isTimerRunning = false;
+                                    });
                                   },
                                   icon: Icon(Icons.stop_rounded, size: 84),
                                 ),
@@ -182,19 +192,19 @@ class _OmAppState extends ConsumerState<OmApp> {
                               children: [
                                 CountDisplayIcon(icon: Icons.restore),
                                 Text(
-                                  omState.isRecording
-                                      ? '${omState.omCount}'
-                                      : 'Mic off',
+                                  isTimerRunning
+                                      ? '${(runningTime ~/ 60).toString().padLeft(2, '0')}:${((runningTime > targetTime ? 0 : runningTime) % 60).toString().padLeft(2, '0')}'
+                                      : 'Start now',
                                   textAlign: TextAlign.center,
 
                                   style:
-                                      (omState.isRecording
+                                      (isTimerRunning
                                               ? Theme.of(
                                                   context,
-                                                ).textTheme.displaySmall
+                                                ).textTheme.headlineMedium
                                               : Theme.of(
                                                   context,
-                                                ).textTheme.headlineSmall)!
+                                                ).textTheme.titleMedium)!
                                           .copyWith(
                                             color: Theme.of(context)
                                                 .colorScheme
@@ -204,7 +214,7 @@ class _OmAppState extends ConsumerState<OmApp> {
                                           ),
                                 ),
                                 CountDisplayIcon(
-                                  icon: omState.isStreamActive
+                                  icon: isTimerRunning
                                       ? Icons.pause
                                       : Icons.play_arrow,
                                 ),
@@ -231,5 +241,3 @@ class CountDisplayIcon extends StatelessWidget {
     return Icon(size: 27, color: const Color.fromARGB(255, 255, 175, 69), icon);
   }
 }
-
-//those 4 icons in the circle are not buttons they are just ordinary icons and they are not tappable, on the are where the icons are placed, function firing is setted by coordinate geometry

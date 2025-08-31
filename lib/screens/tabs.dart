@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+//import 'package:om/core/om_detection_controller.dart';
 import 'package:om/providers/bg_sound.dart';
+//import 'package:om/providers/omDetectionController.dart';
 import 'package:om/providers/player.dart';
+import 'package:om/screens/meditation_timer.dart';
 import 'package:om/screens/om_counting.dart';
 import 'package:om/screens/settings.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -16,10 +19,15 @@ class TabsScreen extends ConsumerStatefulWidget {
 }
 
 class _TabsScreenState extends ConsumerState<TabsScreen> {
+  bool _isBgPlaying = false;
+  Widget _body = OmApp();
+  int currentIndex = 0;
+
   void _openSettings() {
     Navigator.of(context).push(
       PageRouteBuilder(
         opaque: false,
+
         barrierColor: const Color.fromARGB(
           129,
           0,
@@ -33,8 +41,12 @@ class _TabsScreenState extends ConsumerState<TabsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // final omCtrl = ref.watch(omDetectionControllerProvider.notifier);
+    // final omState = ref.watch(omDetectionControllerProvider);
+
     final sound = ref.watch(backgroundSoundNotifierProvider);
     final playerInfo = ref.watch(soundPlayerProvider.notifier);
+
     return SafeArea(
       child: Scaffold(
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
@@ -46,7 +58,7 @@ class _TabsScreenState extends ConsumerState<TabsScreen> {
                 fit: BoxFit.cover,
               ),
             ),
-            OmApp(),
+            Positioned.fill(child: _body),
           ],
         ),
         appBar: AppBar(
@@ -55,24 +67,30 @@ class _TabsScreenState extends ConsumerState<TabsScreen> {
           actions: [
             IconButton(
               onPressed: () {
-                if (sound != null) {
-                  if (playerInfo.getPlayerInfo() == 'no player' ||
-                      playerInfo.getPlayerInfo() == 'alert sound') {
-                    playerInfo.setPlayer('background sound');
-                    playerInfo.play(sound.localPreviewPath, sound.id);
-                  } else {
-                    //playerInfo.stop(sound.id);
-                    print(playerInfo.getPlayerInfo());
-                    print(
-                      'baba baba black sheep, humpty dumpty setp on the wall',
-                    );
+                if (sound != null && !_isBgPlaying) {
+                  playerInfo.setPlayer('background sound');
+                  playerInfo.play(sound.localPreviewPath, sound.id);
+                  setState(() {
+                    _isBgPlaying = true;
+                  });
+                } else {
+                  //playerInfo.stop(sound.id);
+                  print(playerInfo.getPlayerInfo());
+                  print(
+                    'baba baba black sheep, humpty dumpty setp on the wall',
+                  );
+                  print(_isBgPlaying);
+                  print(sound == null);
+                  if (sound != null) {
+                    playerInfo.stop(sound.id);
+                    playerInfo.setPlayer(null);
+                    setState(() {
+                      _isBgPlaying = false;
+                    });
                   }
                 }
               },
-              icon:
-                  (playerInfo.getPlayerInfo() == 'no player' ||
-                      playerInfo.getPlayerInfo() == 'alert sound' ||
-                      sound == null)
+              icon: (!_isBgPlaying)
                   ? Icon(Icons.music_off_rounded)
                   : Icon(Icons.music_note_rounded),
             ),
@@ -86,15 +104,31 @@ class _TabsScreenState extends ConsumerState<TabsScreen> {
         ),
         //body: OmApp(),
         bottomNavigationBar: BottomNavigationBar(
-          currentIndex: 1,
-          onTap: (index) {},
-          items: const [
+          currentIndex: currentIndex,
+          onTap: (index) {
+            setState(() {
+              currentIndex = index;
+              if (index == 0) {
+                if (ref.read(soundPlayerProvider.notifier).isPlaying()) {
+                  ref.read(soundPlayerProvider.notifier).stop(null);
+                }
+                _body = const OmApp();
+              } else if (index == 1) {
+                if (ref.read(soundPlayerProvider.notifier).isPlaying()) {
+                  ref.read(soundPlayerProvider.notifier).stop(null);
+                }
+                _body =
+                    const MeditationApp(); // Replace with your Silent meditation widget
+              }
+            });
+          },
+          items: [
             BottomNavigationBarItem(
-              icon: Icon(FontAwesomeIcons.om),
+              icon: const Icon(FontAwesomeIcons.om),
               label: 'Chanting',
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.spa),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.light_mode_rounded),
               label: 'Silent meditation',
             ),
           ],
