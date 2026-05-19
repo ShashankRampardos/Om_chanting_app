@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:om/screens/auth/login.dart';
 import 'package:om/screens/tabs.dart';
 
 final theme = ThemeData(
@@ -11,11 +12,11 @@ final theme = ThemeData(
   ),
   textTheme: GoogleFonts.latoTextTheme(),
 );
-void main() => runApp(
-  ProviderScope(
-    child: MaterialApp(
-      theme: theme,
-      home: TabsScreen(),
+void main() {
+  debugPrint('debugPrint');
+  runApp(
+    ProviderScope(
+      child: MaterialApp(theme: theme, home: LoginScreen()),
     ),
-  ),
-);
+  );
+}

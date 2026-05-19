@@ -39,3 +39,5 @@ flutter:
 
   assets:
     - assets/images/background_images/background1.jpg
+    - assets/images/auth_image/om_logo.png
+    - assets/images/auth_image/meditation.png

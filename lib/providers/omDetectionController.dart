@@ -3,6 +3,7 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_audio_capture/flutter_audio_capture.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -145,9 +146,19 @@ class OmDetectionController extends AutoDisposeNotifier<OmDetectionState> {
     }
   }
 
+  int _lastCalibrateTime = 0;
+
   void _listener(dynamic obj) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    if (now - _lastCalibrateTime >= 2000) {
+      calibrate();
+      _lastCalibrateTime = now;
+    }
+    debugPrint('freq: ${getRawFreq()}');
     final Float32List buffer = Float32List.fromList(List<double>.from(obj));
     final Pointer<Float> samplePtr = calloc<Float>(buffer.length);
+
     for (int i = 0; i < buffer.length; i++) {
       samplePtr[i] = buffer[i];
     }
@@ -166,7 +177,6 @@ class OmDetectionController extends AutoDisposeNotifier<OmDetectionState> {
       _omBuffer = 0;
     }
 
-    // UI ko reactive state do
     state = state.copyWith(isDetected: detected);
   }
 
@@ -182,7 +192,6 @@ class OmDetectionController extends AutoDisposeNotifier<OmDetectionState> {
     // log if needed
   }
 
-  @override
   void dispose() {
     stop(); // stop stream safely
     // No need to call super.dispose() as Notifier does not define it
