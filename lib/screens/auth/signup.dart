@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:om/services/auth_services.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -21,18 +22,37 @@ class _SignupScreenState extends State<SignupScreen> {
       isLoading = true;
     });
 
-    /// TODO: CALL SIGNUP API HERE
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final response = await AuthService().signup(
+        name: nameController.text.trim(),
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+
+      print(response);
+
+      if (response["message"] != null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(response["message"])));
+
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Signup Failed")));
+      }
+    } catch (e) {
+      print(e);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
 
     setState(() {
       isLoading = false;
     });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Signup Successful')));
-
-    Navigator.pop(context);
   }
 
   @override

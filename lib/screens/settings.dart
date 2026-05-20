@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:om/core/om_detection_controller.dart';
 import 'package:om/providers/alert_sound.dart';
@@ -7,6 +8,7 @@ import 'package:om/providers/bg_sound.dart';
 import 'package:om/providers/omDetectionController.dart';
 import 'package:om/providers/player.dart';
 import 'package:om/screens/about.dart';
+import 'package:om/screens/auth/login.dart';
 import 'package:om/screens/sound_picker.dart';
 import 'package:om/widgets/settings_widgets/target_bottom_sheet.dart';
 import 'package:om/widgets/settings_widgets/text_tile.dart';
@@ -286,6 +288,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     MaterialPageRoute(
                       builder: (context) => const AboutScreen(),
                     ),
+                  );
+                },
+              ),
+              TextTile(
+                text: 'Logout',
+                icon: Icons.logout,
+                executeSetting: () async {
+                  final storage = FlutterSecureStorage();
+
+                  /// DELETE JWT TOKEN
+                  await storage.delete(key: "jwt_token");
+
+                  /// GO TO LOGIN SCREEN
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
+                    (route) => false,
                   );
                 },
               ),
